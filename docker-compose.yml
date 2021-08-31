@@ -1,0 +1,135 @@
+version: '3.7'
+
+networks:
+  laravel:
+
+services:
+  site:
+    build:
+      context: .
+      dockerfile: .dockerfile/nginx.dockerfile
+    container_name: nginx
+    ports:
+      - 8000:8000
+    volumes:
+      - ./:/var/www/html:delegated
+    depends_on:
+      - php
+      - redis
+      - db
+      - mailhog
+    networks:
+      - laravel
+
+  db:
+    image: mysql:8.0
+    platform: linux/x86_64
+    container_name: mysql
+    restart: always
+    volumes:
+      - db-data:/var/lib/mysql
+    tty: true
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_DATABASE: homestead
+      MYSQL_USER: homestead
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    networks:
+      - laravel
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    restart: always
+    depends_on:
+      - php
+      - db
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_HOST=localhost
+      - PMA_PORT=3306
+    volumes:
+      - db-data:/var/lib/mysql
+    ports:
+      - 8024:80
+    networks:
+      - laravel
+
+  php:
+    build:
+      context: .
+      dockerfile: .dockerfile/php.dockerfile
+    container_name: php
+    restart: always
+    depends_on:
+      - db
+    volumes:
+      - ./:/var/www/html:delegated
+    networks:
+      - laravel
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - 6379:6379
+    networks:
+      - laravel
+
+  composer:
+    build:
+      context: .
+      dockerfile: .dockerfile/composer.dockerfile
+    container_name: composer
+    volumes:
+      - ./:/var/www/html
+    working_dir: /var/www/html
+    depends_on:
+      - php
+    user: laravel
+    entrypoint: ['composer', '--ignore-platform-reqs']
+    networks:
+      - laravel
+
+  npm:
+    image: node:13.7
+    container_name: npm
+    volumes:
+      - ./:/var/www/html
+    working_dir: /var/www/html
+    entrypoint: ['npm']
+    networks:
+      - laravel
+
+  artisan:
+    build:
+      context: .
+      dockerfile: .dockerfile/php.dockerfile
+    container_name: artisan
+    volumes:
+      - ./:/var/www/html:delegated
+    depends_on:
+      - db
+    working_dir: /var/www/html
+    user: laravel
+    entrypoint: ['php', '/var/www/html/artisan']
+    networks:
+      - laravel
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    restart: always
+    ports:
+      - 1025:1025
+      - 8025:8025
+    networks:
+      - laravel
+
+volumes:
+  db-data:
